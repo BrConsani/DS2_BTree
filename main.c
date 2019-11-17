@@ -8,7 +8,7 @@
 #define TRUE 1
 #define FALSE 0
 #define NULO -1
-#define VAGO -2
+#define VAGO 0xfefefefe
 
 #define INICIO 0
 #define ATUAL 1
@@ -16,7 +16,7 @@
 #define TAM 256
 
 #define MAXCHAVE 3
-#define MINCHAVE MAXCHAVE/2
+#define MINCHAVE 2
 
 typedef struct reg{
 	int cod;
@@ -28,7 +28,7 @@ typedef struct reg{
 typedef struct no{
     int contagem;
     int chaves[MAXCHAVE];
-    int ponteiros[MAXCHAVE+1]
+    int ponteiros[MAXCHAVE+1];
 } No;
 
 Registro tempInsere[6];
@@ -38,6 +38,7 @@ int tempIndex[3] = {0, 0, 0};
 int raiz;
 
 int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido);
+int criarRaiz(int codigo, int esq, int dir);
 int buscarNo(int codigo, No* no, int* posicao);
 int inserirNaPagina(int codigo, int rrn, No *no);
 void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* filhoPromovido, No* novoNo);
@@ -60,7 +61,18 @@ int main(void){
 		mkdir("temp", 0777);
 
     obterCache();
-    //Verificar se arvore existe, se nao, criala
+    FILE *arvoreB;
+
+    arvoreB = fopen("./temp/arvoreB.bin", "rb");
+    if(arvoreB == NULL){
+        arvoreB = fopen("./temp/arvoreB.bin", "w+b");
+        int aux = NULO;
+        fwrite(&aux, sizeof(int), 1, arvoreB);
+        raiz = NULO;
+    }else{
+        fread(&raiz, sizeof(int), 1, arvoreB);
+    }
+    fclose(arvoreB);
     
     printf("///////////////  SISTEMA DE REGISTRO DE SEGURADORAS  ///////////////\n");
 	printf("///////////////                MENU                  ///////////////\n");
@@ -77,9 +89,17 @@ int main(void){
         printf("\n$ ");
         scanf("%d", &escolha);
         switch(escolha){
+            int promovido, promovidoPont, promovidoCod;
             case 1:
-                //inserir
-                //tempIndex[0]++;
+                promovido = inserirCodigo(raiz, tempInsere[tempIndex[0]].cod , &promovidoPont, &promovidoCod);
+                if(promovido){
+                    raiz = criarRaiz(promovidoCod, raiz, promovidoPont);
+                    FILE *arvoreB;
+                    arvoreB = fopen("./temp/arvoreB.bin", "r+b");
+                    fwrite(&raiz, sizeof(int), 1, arvoreB);
+                }
+                    
+                tempIndex[0]++;
                 break;
             case 2:
                 //listar todos os segurados
@@ -115,31 +135,62 @@ int main(void){
     }while(escolha != -1);
 }
 
+int criarRaiz(int codigo, int esq, int dir){
+    No no;
+    int rnn;
+    FILE* arvoreB;
+    
+    arvoreB = fopen("./temp/arvoreB.bin", "r+b");
+    fseek(arvoreB, -sizeof(int), FINAL);
+    rnn = ftell(arvoreB) / sizeof(No);
+
+    int j;
+    for(j=0; j < MAXCHAVE; j++){
+        no.chaves[j] = VAGO;
+        no.ponteiros[j] = NULO;
+    }
+    no.ponteiros[MAXCHAVE] = NULO;
+
+    no.chaves[0] = codigo;
+    no.ponteiros[0] = esq;
+    no.ponteiros[1] = dir;
+    no.contagem = 1;
+
+    arvoreB = fopen("./temp/arvoreB.bin", "r+b");
+    fwrite(&rnn, sizeof(int), 1, arvoreB);
+    fseek(arvoreB, rnn * sizeof(No) + 4, INICIO);
+    fwrite(&no, sizeof(No), 1, arvoreB);
+    fclose(arvoreB);
+    if(rnn == 0)
+        printf("Codigo %d inserido com sucesso!\n", codigo);
+    return rnn;
+}
+
 int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido){
     No no;
     No novoNo;
     int encontrado, promovido;
     int posicao, auxRaiz, auxCodigo;
 
-    if(raiz == NULO){
+    if(rnn == NULO){
         *codigoPromovido = codigo;
-        filhoPromovido = NULO;
+        *filhoPromovido = NULO;
         return(TRUE);
     }
 
     FILE* arvoreB;
 
     arvoreB = fopen("./temp/arvoreB.bin", "rb");
-    fseek(arvoreB, rnn * sizeof(No) * 2, INICIO);
+    fseek(arvoreB, rnn * sizeof(No) + 4, INICIO);
     fread(&no, sizeof(No), 1, arvoreB);
     fclose(arvoreB);
 
     encontrado = buscarNo(codigo, &no, &posicao);    
     if(encontrado){
-        printf("Codigo %d duplicado!/n", codigo);
+        printf("Codigo %d duplicado!\n", codigo);
         return FALSE;
     }
-
+    
     promovido = inserirCodigo(no.ponteiros[posicao], codigo, &auxRaiz, &auxCodigo);
     if(promovido == FALSE){
         return FALSE;
@@ -149,20 +200,23 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         FILE* arvoreB;
 
         arvoreB = fopen("./temp/arvoreB.bin", "r+b");
-        fseek(arvoreB, rnn * sizeof(No) * 2, INICIO);
+        fseek(arvoreB, rnn * sizeof(No) + 4, INICIO);
         fwrite(&no, sizeof(No),1 ,arvoreB);
         fclose(arvoreB);
+        printf("Codigo %d inserido com sucesso!\n", codigo);
         return FALSE;
     }else{
         dividirNo(auxCodigo, auxRaiz, &no, codigoPromovido, filhoPromovido, &novoNo);
         FILE* arvoreB;
 
         arvoreB = fopen("./temp/arvoreB.bin", "r+b");
-        fseek(arvoreB, rnn * sizeof(No) * 2, INICIO);
-        fwrite(&no, sizeof(No),1 ,arvoreB);
-        fseek(arvoreB, *filhoPromovido * sizeof(No) * 2, INICIO);
+        fseek(arvoreB, rnn * sizeof(No) + 4, INICIO);
+        fwrite(&no, sizeof(No), 1 , arvoreB);
+        fseek(arvoreB, *filhoPromovido * sizeof(No) + 4, INICIO);
         fwrite(&novoNo, sizeof(No),1 ,arvoreB);
         fclose(arvoreB);
+        printf("Codigo %d inserido com sucesso!\n", codigo);
+        return TRUE;
     }
 }
 
@@ -198,7 +252,7 @@ void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* fil
         tempCodigos[i] = noAntigo->chaves[i];
         tempPonteiro[i] = noAntigo->ponteiros[i];
     }
-    tempPonteiro[i] = noAntigo->ponteiros;
+    tempPonteiro[i] = noAntigo->ponteiros[i];
     for(i=MAXCHAVE; codigo < tempCodigos[i-1] && i > 0; i--){
         tempCodigos[i] = tempCodigos[i-1];
         tempPonteiro[i+1] = tempPonteiro[i];
@@ -209,14 +263,34 @@ void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* fil
     FILE* arvoreB;
 
     arvoreB = fopen("./temp/arvoreB.bin", "rb");
-    fseek(arvoreB, )
+    fseek(arvoreB, -sizeof(int), FINAL);
+    *filhoPromovido = ftell(arvoreB) / sizeof(No);
+    fclose(arvoreB);
 
+    int j;
+    for(j=0; j < MAXCHAVE; j++){
+        novoNo->chaves[j] = VAGO;
+        novoNo->ponteiros[j] = NULO;
+    }
+    novoNo->ponteiros[MAXCHAVE] = NULO;
 
+    for(i=0; i < MINCHAVE; i++){
+        noAntigo->chaves[i] = tempCodigos[i];
+        noAntigo->ponteiros[i] = tempPonteiro[i];
+        noAntigo->chaves[i+1] = VAGO;
+        noAntigo->ponteiros[i+2] = NULO;
+    }
+    novoNo->chaves[0] = tempCodigos[3];
+    novoNo->ponteiros[0] = tempPonteiro[3];
+    noAntigo->ponteiros[3] = tempPonteiro[3];
+    novoNo->ponteiros[3] = tempPonteiro[4];
+    novoNo->contagem = MAXCHAVE - MINCHAVE;
+    noAntigo->contagem = MINCHAVE;
+    *codigoPromovido = tempCodigos[MINCHAVE];
 
-    filhoPromovido = 
-
+    printf("Divisao de no!\n");
+    printf("Codigo %d promovido!\n", *codigoPromovido);
 }
-
 
 void listarTodos(){
 
@@ -312,8 +386,8 @@ void dumpArquivo(){
 
     if (fopen("./temp/data.bin", "rb") != NULL)
         printf(" 1. data.bin\n");
-    if (fopen("./temp/treeb.bin", "rb") != NULL)
-        printf(" 2. treeb.bin\n");
+    if (fopen("./temp/arvoreB.bin", "rb") != NULL)
+        printf(" 2. arvoreB.bin\n");
 
     printf("-1. RETORNAR\n\n");
 
@@ -329,7 +403,7 @@ void dumpArquivo(){
             myfile = fopen("./temp/data.bin", "rb");
             break;
         case 2:
-            myfile = fopen("./temp/treeb.bin", "rb");
+            myfile = fopen("./temp/arvoreB.bin", "rb");
             break;
         default:
             printf("Escolha invalida, abortando dump.\n");
