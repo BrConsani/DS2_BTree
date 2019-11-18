@@ -119,8 +119,8 @@ int main(void){
                 //listar todos os segurados
                 break;
             case 3:
-                //buscar
-                //tempIndex[2]++;
+                buscarCodigo(tempBusca[tempIndex[2]]);
+                tempIndex[2]++;
                 break;
             case 4:
                 carregarArquivos();
@@ -336,12 +336,34 @@ void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovi
     printf("Codigo %d promovido!\n", *codigoPromovido);
 }
 
-void listarTodos(){
-
+void listarTodos(No* no){
+    
 }
 
 void buscarCodigo(int codigo){
+    FILE* arvoreB;
 
+    arvoreB = fopen("./temp/arvoreB.bin", "rb");
+    fseek(arvoreB, 4, INICIO);
+    int encontrado;
+    int posicao;
+    int pagina = -1;
+    No no;
+
+    do{
+        fread(&no, sizeof(No), 1, arvoreB);
+        encontrado = buscarNo(codigo, &no, &posicao);
+        pagina++;
+        if(feof(arvoreB))
+            break;
+    }while(!encontrado);
+
+    if(encontrado){
+        printf("Codgio %d encontrado, pagina %d, posicao %d!\n",
+        codigo, pagina, posicao);
+    }else{
+        printf("Codigo %d nao encontrado!\n", codigo);
+    }
 }
 
 void carregarArquivos(){
