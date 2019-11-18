@@ -28,6 +28,7 @@ typedef struct reg{
 typedef struct no{
     int contagem;
     int chaves[MAXCHAVE];
+    int offset[MAXCHAVE];
     int ponteiros[MAXCHAVE+1];
 } No;
 
@@ -37,11 +38,12 @@ int tempBusca[4];
 int tempIndex[3] = {0, 0, 0};
 int raiz;
 
-int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido);
-int criarRaiz(int codigo, int esq, int dir);
+int inserirNoPrincipal(Registro registro);
+int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido, int* offsetPromovido);
+int criarRaiz(int codigo, int offset, int esq, int dir);
 int buscarNo(int codigo, No* no, int* posicao);
-int inserirNaPagina(int codigo, int rrn, No *no);
-void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* filhoPromovido, No* novoNo);
+int inserirNaPagina(int codigo, int offset, int rrn, No *no);
+void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovido, int* offsetPromovido, int* filhoPromovido, No* novoNo);
 
 void listarTodos();
 void buscarCodigo(int codigo);
@@ -61,6 +63,16 @@ int main(void){
 		mkdir("temp", 0777);
 
     obterCache();
+    
+    FILE *data;
+
+    data = fopen("./temp/data.bin", "rb");
+
+    if(data == NULL)
+        data = fopen("./temp/data.bin", "w+b");
+
+    fclose(data);
+
     FILE *arvoreB;
 
     arvoreB = fopen("./temp/arvoreB.bin", "rb");
@@ -89,16 +101,18 @@ int main(void){
         printf("\n$ ");
         scanf("%d", &escolha);
         switch(escolha){
-            int promovido, promovidoPont, promovidoCod;
+            int promovido, promovidoPont, promovidoCod, promovidoOffset;
             case 1:
-                promovido = inserirCodigo(raiz, tempInsere[tempIndex[0]].cod , &promovidoPont, &promovidoCod);
+                promovido = inserirCodigo(raiz, tempInsere[tempIndex[0]].cod , &promovidoPont, &promovidoCod, &promovidoOffset);
                 if(promovido){
-                    raiz = criarRaiz(promovidoCod, raiz, promovidoPont);
+                    if(raiz == NULO)
+                        promovidoOffset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
+                    raiz = criarRaiz(promovidoCod, promovidoOffset, raiz, promovidoPont);
                     FILE *arvoreB;
                     arvoreB = fopen("./temp/arvoreB.bin", "r+b");
                     fwrite(&raiz, sizeof(int), 1, arvoreB);
+                    fclose(arvoreB);
                 }
-                    
                 tempIndex[0]++;
                 break;
             case 2:
@@ -135,7 +149,20 @@ int main(void){
     }while(escolha != -1);
 }
 
-int criarRaiz(int codigo, int esq, int dir){
+int inserirNoPrincipal(Registro registro){
+    int offset;
+
+    FILE* data;
+
+    data = fopen("./temp/data.bin", "r+b");
+    fseek(data, 0, FINAL);
+    offset = ftell(data);
+    fwrite(&registro, sizeof(Registro), 1, data);
+    fclose(data);
+    return offset;
+}
+
+int criarRaiz(int codigo, int offset, int esq, int dir){
     No no;
     int rnn;
     FILE* arvoreB;
@@ -147,11 +174,13 @@ int criarRaiz(int codigo, int esq, int dir){
     int j;
     for(j=0; j < MAXCHAVE; j++){
         no.chaves[j] = VAGO;
+        no.offset[j] = VAGO;
         no.ponteiros[j] = NULO;
     }
     no.ponteiros[MAXCHAVE] = NULO;
 
     no.chaves[0] = codigo;
+    no.offset[0] = offset;
     no.ponteiros[0] = esq;
     no.ponteiros[1] = dir;
     no.contagem = 1;
@@ -166,7 +195,7 @@ int criarRaiz(int codigo, int esq, int dir){
     return rnn;
 }
 
-int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido){
+int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido, int* offsetPromovido){
     No no;
     No novoNo;
     int encontrado, promovido;
@@ -191,12 +220,14 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         return FALSE;
     }
     
-    promovido = inserirCodigo(no.ponteiros[posicao], codigo, &auxRaiz, &auxCodigo);
+    promovido = inserirCodigo(no.ponteiros[posicao], codigo, &auxRaiz, &auxCodigo, offsetPromovido);
     if(promovido == FALSE){
         return FALSE;
     }
     if(no.contagem < MAXCHAVE){
-        inserirNaPagina(auxCodigo, auxRaiz, &no);
+        int offset;
+        offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
+        inserirNaPagina(auxCodigo, offset, auxRaiz, &no);
         FILE* arvoreB;
 
         arvoreB = fopen("./temp/arvoreB.bin", "r+b");
@@ -206,7 +237,9 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         printf("Codigo %d inserido com sucesso!\n", codigo);
         return FALSE;
     }else{
-        dividirNo(auxCodigo, auxRaiz, &no, codigoPromovido, filhoPromovido, &novoNo);
+        int offset;
+        offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
+        dividirNo(auxCodigo, offset, auxRaiz, &no, codigoPromovido, offsetPromovido, filhoPromovido, &novoNo);
         FILE* arvoreB;
 
         arvoreB = fopen("./temp/arvoreB.bin", "r+b");
@@ -231,33 +264,39 @@ int buscarNo(int codigo, No* no, int* posicao){
     }
 }
 
-int inserirNaPagina(int codigo, int rrn, No *no){
+int inserirNaPagina(int codigo, int offset, int rrn, No *no){
     int i;
     for(i=no->contagem; codigo < no->chaves[i-1] && i > 0; i--){
         no->chaves[i] = no->chaves[i-1];
+        no->offset[i] = no->offset[i-1];
         no->ponteiros[i+1] = no->ponteiros[i];
     }
     no->contagem++;
     no->chaves[i] = codigo;
+    no->offset[i] = offset;
     no->ponteiros[i+1] = rrn;
 }
 
-void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* filhoPromovido, No* novoNo){
+void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovido, int* offsetPromovido, int* filhoPromovido, No* novoNo){
     int i;
     int meio;
     int tempCodigos[MAXCHAVE+1];
+    int tempOffset[MAXCHAVE+1];
     int tempPonteiro[MAXCHAVE+2];
-
+    
     for(i=0; i<MAXCHAVE; i++){
         tempCodigos[i] = noAntigo->chaves[i];
+        tempOffset[i] = noAntigo->offset[i];
         tempPonteiro[i] = noAntigo->ponteiros[i];
     }
     tempPonteiro[i] = noAntigo->ponteiros[i];
     for(i=MAXCHAVE; codigo < tempCodigos[i-1] && i > 0; i--){
         tempCodigos[i] = tempCodigos[i-1];
+        tempOffset[i] = tempOffset[i-1];
         tempPonteiro[i+1] = tempPonteiro[i];
     }
     tempCodigos[i] = codigo;
+    tempOffset[i] = offset;
     tempPonteiro[i+1] = rnn;
     
     FILE* arvoreB;
@@ -270,23 +309,28 @@ void dividirNo(int codigo, int rnn, No* noAntigo, int* codigoPromovido, int* fil
     int j;
     for(j=0; j < MAXCHAVE; j++){
         novoNo->chaves[j] = VAGO;
+        novoNo->offset[j] = VAGO;
         novoNo->ponteiros[j] = NULO;
     }
     novoNo->ponteiros[MAXCHAVE] = NULO;
 
     for(i=0; i < MINCHAVE; i++){
         noAntigo->chaves[i] = tempCodigos[i];
+        noAntigo->offset[i] = tempOffset[i];
         noAntigo->ponteiros[i] = tempPonteiro[i];
         noAntigo->chaves[i+1] = VAGO;
+        noAntigo->offset[i+1] = VAGO;
         noAntigo->ponteiros[i+2] = NULO;
     }
     novoNo->chaves[0] = tempCodigos[3];
+    novoNo->offset[0] = tempOffset[3];
     novoNo->ponteiros[0] = tempPonteiro[3];
     noAntigo->ponteiros[3] = tempPonteiro[3];
     novoNo->ponteiros[3] = tempPonteiro[4];
     novoNo->contagem = MAXCHAVE - MINCHAVE;
     noAntigo->contagem = MINCHAVE;
     *codigoPromovido = tempCodigos[MINCHAVE];
+    *offsetPromovido = tempOffset[MINCHAVE];
 
     printf("Divisao de no!\n");
     printf("Codigo %d promovido!\n", *codigoPromovido);
