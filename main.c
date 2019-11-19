@@ -45,7 +45,7 @@ int buscarNo(int codigo, No* no, int* posicao);
 int inserirNaPagina(int codigo, int offset, int rrn, No *no);
 void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovido, int* offsetPromovido, int* filhoPromovido, No* novoNo);
 
-void listarTodos();
+void listarTodos(int rnn);
 void buscarCodigo(int codigo);
 
 void carregarArquivos();
@@ -116,7 +116,7 @@ int main(void){
                 tempIndex[0]++;
                 break;
             case 2:
-                //listar todos os segurados
+                listarTodos(raiz);
                 break;
             case 3:
                 buscarCodigo(tempBusca[tempIndex[2]]);
@@ -336,8 +336,46 @@ void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovi
     printf("Codigo %d promovido!\n", *codigoPromovido);
 }
 
-void listarTodos(No* no){
-    
+void listarTodos(int rnn){
+    No no;
+    FILE* arvoreB;
+
+    arvoreB = fopen("./temp/arvoreB.bin", "rb");
+    fseek(arvoreB, rnn * sizeof(No) + 4, INICIO);
+    fread(&no, sizeof(No), 1, arvoreB);
+    fclose(arvoreB);
+
+    if (no.ponteiros[0] == NULO && no.ponteiros[1] == NULO &&
+        no.ponteiros[2] == NULO && no.ponteiros[3] == NULO){
+        int i;
+        FILE* data;
+        Registro registro;
+
+        data = fopen("./temp/data.bin", "rb");
+        for(i=0; i<no.contagem; i++){
+            if(no.chaves[i] != VAGO){
+                fseek(data, no.offset[i], INICIO);
+                fread(&registro, sizeof(Registro), 1, data);
+                printf("%d %s %s %s\n", registro.cod, registro.nome, registro.seg, registro.tipo);
+            }
+        }
+        return;
+    }
+    int i;
+    for(i=0; i<4; i++){
+        if(no.ponteiros[i] != NULO){
+            listarTodos(no.ponteiros[i]);
+            if(no.chaves[i] != VAGO){
+                FILE* data;
+                Registro registro;
+
+                data = fopen("./temp/data.bin", "rb");
+                fseek(data, no.offset[i], INICIO);
+                fread(&registro, sizeof(Registro), 1, data);
+                printf("%d %s %s %s\n", registro.cod, registro.nome, registro.seg, registro.tipo);
+            }
+        }
+    }
 }
 
 void buscarCodigo(int codigo){
@@ -359,7 +397,7 @@ void buscarCodigo(int codigo){
     }while(!encontrado);
 
     if(encontrado){
-        printf("Codgio %d encontrado, pagina %d, posicao %d!\n",
+        printf("Codigo %d encontrado, pagina %d, posicao %d!\n",
         codigo, pagina, posicao);
     }else{
         printf("Codigo %d nao encontrado!\n", codigo);
