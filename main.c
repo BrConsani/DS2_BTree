@@ -395,7 +395,6 @@ void buscarCodigo(int codigo){
         if(feof(arvoreB))
             break;
     }while(!encontrado);
-
     if(encontrado){
         printf("Codigo %d encontrado, pagina %d, posicao %d!\n",
         codigo, pagina, posicao);
