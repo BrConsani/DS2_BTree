@@ -18,8 +18,8 @@
 #define MAXCHAVE 3
 #define MINCHAVE 2
 
-#define QUANTIDADEINSERIR 6
-#define QUANTIDADEBUSCA 4
+#define QUANTIDADEINSERIR 16
+#define QUANTIDADEBUSCA 5
 #define QUANTIDADEREMOVER 4
 
 typedef struct reg{
@@ -203,7 +203,7 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
     No no;
     No novoNo;
     int encontrado, promovido;
-    int posicao, auxRaiz, auxCodigo;
+    int posicao, auxRaiz, auxCodigo, auxOffset = 0;
 
     if(rnn == NULO){
         *codigoPromovido = codigo;
@@ -224,13 +224,16 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         return FALSE;
     }
     
-    promovido = inserirCodigo(no.ponteiros[posicao], codigo, &auxRaiz, &auxCodigo, offsetPromovido);
+    promovido = inserirCodigo(no.ponteiros[posicao], codigo, &auxRaiz, &auxCodigo, &auxOffset);
     if(promovido == FALSE){
         return FALSE;
     }
     if(no.contagem < MAXCHAVE){
         int offset;
-        offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
+        if(auxOffset != 0)
+            offset = auxOffset;
+        else
+            offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
         inserirNaPagina(auxCodigo, offset, auxRaiz, &no);
         FILE* arvoreB;
 
@@ -242,7 +245,10 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         return FALSE;
     }else{
         int offset;
-        offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
+        if(auxOffset != 0)
+            offset = auxOffset;
+        else
+            offset = inserirNoPrincipal(tempInsere[tempIndex[0]]);
         dividirNo(auxCodigo, offset, auxRaiz, &no, codigoPromovido, offsetPromovido, filhoPromovido, &novoNo);
         FILE* arvoreB;
 
@@ -252,7 +258,8 @@ int inserirCodigo(int rnn, int codigo, int* filhoPromovido, int* codigoPromovido
         fseek(arvoreB, *filhoPromovido * sizeof(No) + 4, INICIO);
         fwrite(&novoNo, sizeof(No),1 ,arvoreB);
         fclose(arvoreB);
-        printf("Codigo %d inserido com sucesso!\n", codigo);
+        if(auxOffset != 0 || raiz == 0)
+            printf("Codigo %d inserido com sucesso!\n", codigo);
         return TRUE;
     }
 }
@@ -329,13 +336,12 @@ void dividirNo(int codigo, int offset, int rnn, No* noAntigo, int* codigoPromovi
     novoNo->chaves[0] = tempCodigos[3];
     novoNo->offset[0] = tempOffset[3];
     novoNo->ponteiros[0] = tempPonteiro[3];
-    noAntigo->ponteiros[3] = tempPonteiro[3];
-    novoNo->ponteiros[3] = tempPonteiro[4];
+    novoNo->ponteiros[1] = tempPonteiro[4];
     novoNo->contagem = MAXCHAVE - MINCHAVE;
+    noAntigo->ponteiros[2] = tempPonteiro[2];
     noAntigo->contagem = MINCHAVE;
     *codigoPromovido = tempCodigos[MINCHAVE];
     *offsetPromovido = tempOffset[MINCHAVE];
-
     printf("Divisao de no!\n");
     printf("Codigo %d promovido!\n", *codigoPromovido);
 }
@@ -369,7 +375,7 @@ void listarTodos(int rnn){
     for(i=0; i<4; i++){
         if(no.ponteiros[i] != NULO){
             listarTodos(no.ponteiros[i]);
-            if(no.chaves[i] != VAGO){
+            if(i < 3 && no.chaves[i] != VAGO){
                 FILE* data;
                 Registro registro;
 
