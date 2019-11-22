@@ -18,6 +18,10 @@
 #define MAXCHAVE 3
 #define MINCHAVE 2
 
+#define QUANTIDADEINSERIR 6
+#define QUANTIDADEBUSCA 4
+#define QUANTIDADEREMOVER 4
+
 typedef struct reg{
 	int cod;
 	char nome[50];
@@ -32,9 +36,9 @@ typedef struct no{
     int ponteiros[MAXCHAVE+1];
 } No;
 
-Registro tempInsere[6];
-int tempRemove[4];
-int tempBusca[4];
+Registro tempInsere[QUANTIDADEINSERIR];
+int tempRemove[QUANTIDADEREMOVER];
+int tempBusca[QUANTIDADEBUSCA];
 int tempIndex[3] = {0, 0, 0};
 int raiz;
 
@@ -133,15 +137,15 @@ int main(void){
             default:
                 printf("Opcao invalida.\n");
         }
-        if(tempIndex[0] >= 6){
+        if(tempIndex[0] >= QUANTIDADEINSERIR){
             tempIndex[0] = 0;
             printf("Todos os registros foram adicionados, insercao reiniciada.\n");
         }
-        if(tempIndex[1] >= 4){
+        if(tempIndex[1] >= QUANTIDADEREMOVER){
             tempIndex[1] = 0;
             printf("Todos os codigos foram removidos, remocao reiniciada.\n");
         }
-        if(tempIndex[2] >= 4){
+        if(tempIndex[2] >= QUANTIDADEBUSCA){
             tempIndex[2] = 0;
             printf("Todos os codigos foram buscados, busca reiniciada.\n");
         }
@@ -407,19 +411,19 @@ void carregarArquivos(){
     FILE *insere;
 
 	insere = fopen("./temp-testes/insere.bin", "rb");
-	fread(&tempInsere, sizeof(struct reg), 6, insere);
+	fread(&tempInsere, sizeof(struct reg), QUANTIDADEINSERIR, insere);
 	fclose(insere);
 
     FILE *remove;
 
 	remove = fopen("./temp-testes/remove.bin", "rb");
-	fread(&tempRemove, sizeof(int), 4, remove);
+	fread(&tempRemove, sizeof(int), QUANTIDADEREMOVER, remove);
 	fclose(remove);
 
     FILE *busca;
 
 	busca = fopen("./temp-testes/busca.bin", "rb");
-	fread(&tempBusca, sizeof(int), 4, busca);
+	fread(&tempBusca, sizeof(int), QUANTIDADEBUSCA, busca);
 	fclose(busca);
 
 	printf("Dados carregados com sucesso!\n");
